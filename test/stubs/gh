@@ -12,10 +12,13 @@
 #   GH_STUB_PAYLOAD             リクエストボディの保存先 (必須)
 #   GH_STUB_AUTH_FAIL           1 なら 'gh auth status' を失敗させる
 #   GH_STUB_CURRENT_REPO        'gh repo view' が返すリポジトリ名 (空なら失敗)
+#   GH_STUB_DEFAULT_BRANCH      'gh repo view --json defaultBranchRef' が返すブランチ名 (既定: main)
 #   GH_STUB_REPO_EDIT_FAIL      1 なら 'gh repo edit' を失敗させる
 #   GH_STUB_EXISTING_RULESET_ID Ruleset一覧照会が返すID (空なら該当なし)
 #   GH_STUB_RULESET_LIST_FAIL   1 ならRuleset一覧の照会を失敗させる
 #   GH_STUB_RULESET_WRITE_FAIL  1 ならRulesetの作成/更新を失敗させる
+#   GH_STUB_DEVELOP_EXISTS      1 なら developブランチの存在確認を成功させる
+#   GH_STUB_BRANCH_CREATE_FAIL  1 ならブランチ作成 (POST git/refs) を失敗させる
 
 set -uo pipefail
 
@@ -30,6 +33,11 @@ case "${1:-}" in
   repo)
     case "${2:-}" in
       view)
+        # デフォルトブランチの照会 (--json defaultBranchRef)
+        if [[ "$*" == *"defaultBranchRef"* ]]; then
+          printf '%s\n' "${GH_STUB_DEFAULT_BRANCH:-main}"
+          exit 0
+        fi
         [[ -z "${GH_STUB_CURRENT_REPO:-}" ]] && exit 1
         printf '%s\n' "$GH_STUB_CURRENT_REPO"
         exit 0
@@ -43,6 +51,25 @@ case "${1:-}" in
     ;;
 
   api)
+    # ブランチの存在確認 (repos/<owner>/<repo>/branches/<branch>)
+    if [[ "$*" == *"/branches/"* ]]; then
+      [[ "${GH_STUB_DEVELOP_EXISTS:-0}" == 1 ]] && exit 0
+      exit 1
+    fi
+
+    # デフォルトブランチのSHA照会 (repos/<owner>/<repo>/git/ref/heads/<branch>)
+    if [[ "$*" == *"git/ref/heads/"* ]]; then
+      printf 'stub-sha-0000000000000000000000000000000000000000\n'
+      exit 0
+    fi
+
+    # ブランチ作成 (POST repos/<owner>/<repo>/git/refs)
+    if [[ "$*" == *"git/refs"* ]]; then
+      [[ "${GH_STUB_BRANCH_CREATE_FAIL:-0}" == 1 ]] && exit 1
+      printf '{"ref":"refs/heads/develop"}\n'
+      exit 0
+    fi
+
     if printf '%s\n' "$@" | grep -q -- '--method'; then
       # Rulesetの作成(POST) / 更新(PUT)。リクエストボディを保存する。
       cat >"$GH_STUB_PAYLOAD"
