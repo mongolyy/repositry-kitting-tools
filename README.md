@@ -51,6 +51,26 @@ GitHubリポジトリの初期設定を自動化するツール集です。
 - 個人アカウントの **プライベートリポジトリ** でRulesetを有効化するには **GitHub Pro** が必要です。パブリックリポジトリは無料プランで利用できます。
 - 設定内容を変更したい場合は、スクリプト冒頭の「設定」セクション (`ruleset_json` など) を編集してください。
 
+## 開発
+
+### テスト
+
+`test/setup-repo.bats` に [bats-core](https://github.com/bats-core/bats-core) によるユニットテストがあります。gh CLI は `test/stubs/gh` のスタブに差し替わるため、**実際のGitHub APIは呼ばれず**、認証もネットワークも不要です。
+
+「どんな引数で `gh` が呼ばれたか」「同名Rulesetの有無でPOST/PUTが切り替わるか」「送信されるRuleset JSONの内容」を検証しています。
+
+```bash
+# 依存ツールのインストール
+#   Ubuntu: sudo apt-get install -y bats jq shellcheck
+#   macOS:  brew install bats-core jq shellcheck
+
+bash -n setup-repo.sh                      # 構文チェック
+shellcheck setup-repo.sh test/stubs/gh     # 静的解析
+bats test/                                 # ユニットテスト
+```
+
+上記3つは `.github/workflows/ci.yml` でpush / pull request時に自動実行されます。
+
 ## License
 
 [MIT](./LICENSE)

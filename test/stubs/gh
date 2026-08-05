@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#
+# テスト用の gh CLI スタブ。
+#
+# 実際のGitHub APIは呼ばず、以下を行う:
+#   - 呼び出された引数を $GH_STUB_LOG に追記する
+#   - --input - でリクエストボディが渡された場合は $GH_STUB_PAYLOAD に保存する
+#   - GH_STUB_* 環境変数に応じて成功/失敗や返り値を切り替える
+#
+# 対応する環境変数:
+#   GH_STUB_LOG                 呼び出しログの出力先 (必須)
+#   GH_STUB_PAYLOAD             リクエストボディの保存先 (必須)
+#   GH_STUB_AUTH_FAIL           1 なら 'gh auth status' を失敗させる
+#   GH_STUB_CURRENT_REPO        'gh repo view' が返すリポジトリ名 (空なら失敗)
+#   GH_STUB_REPO_EDIT_FAIL      1 なら 'gh repo edit' を失敗させる
+#   GH_STUB_EXISTING_RULESET_ID Ruleset一覧照会が返すID (空なら該当なし)
+#   GH_STUB_RULESET_LIST_FAIL   1 ならRuleset一覧の照会を失敗させる
+#   GH_STUB_RULESET_WRITE_FAIL  1 ならRulesetの作成/更新を失敗させる
+
+set -uo pipefail
+
+printf 'gh %s\n' "$*" >>"$GH_STUB_LOG"
+
+case "${1:-}" in
+  auth)
+    [[ "${GH_STUB_AUTH_FAIL:-0}" == 1 ]] && exit 1
+    exit 0
+    ;;
+
+  repo)
+    case "${2:-}" in
+      view)
+        [[ -z "${GH_STUB_CURRENT_REPO:-}" ]] && exit 1
+        printf '%s\n' "$GH_STUB_CURRENT_REPO"
+        exit 0
+        ;;
+      edit)
+        [[ "${GH_STUB_REPO_EDIT_FAIL:-0}" == 1 ]] && exit 1
+        exit 0
+        ;;
+    esac
+    exit 1
+    ;;
+
+  api)
+    if printf '%s\n' "$@" | grep -q -- '--method'; then
+      # Rulesetの作成(POST) / 更新(PUT)。リクエストボディを保存する。
+      cat >"$GH_STUB_PAYLOAD"
+      [[ "${GH_STUB_RULESET_WRITE_FAIL:-0}" == 1 ]] && exit 1
+      printf '{"id":999}\n'
+      exit 0
+    fi
+
+    # Ruleset一覧の照会。--jq で絞り込まれた結果 (ID or 空) を返す。
+    [[ "${GH_STUB_RULESET_LIST_FAIL:-0}" == 1 ]] && exit 1
+    if [[ -n "${GH_STUB_EXISTING_RULESET_ID:-}" ]]; then
+      printf '%s\n' "$GH_STUB_EXISTING_RULESET_ID"
+    fi
+    exit 0
+    ;;
+esac
+
+printf 'gh stub: 未対応の呼び出しです: %s\n' "$*" >&2
+exit 1
