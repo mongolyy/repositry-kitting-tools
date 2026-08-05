@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
 #
-# setup-team-repo.sh のユニットテスト。
+# setup-repo.sh のユニットテスト。
 # gh CLI はスタブ (test/stubs/gh) に差し替えるため、実際のGitHub APIは呼ばれない。
 
 setup() {
   REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
-  SETUP_SCRIPT="$REPO_ROOT/setup-team-repo.sh"
+  SETUP_SCRIPT="$REPO_ROOT/setup-repo.sh"
 
   TEST_TMP="$(mktemp -d)"
 

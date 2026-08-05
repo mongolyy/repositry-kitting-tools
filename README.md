@@ -2,7 +2,7 @@
 
 GitHubリポジトリの初期設定を自動化するツール集です。
 
-## setup-team-repo.sh
+## setup-repo.sh
 
 作成済みのGitHubリポジトリに対して、チーム開発向けの推奨設定を [gh CLI](https://cli.github.com/) で適用するスクリプトです。ブランチ戦略を **GitHub Flow** / **GitFlow** から選択でき、戦略に応じて設定内容が切り替わります。何度実行しても安全(冪等)です。
 
@@ -10,17 +10,17 @@ GitHubリポジトリの初期設定を自動化するツール集です。
 
 ```bash
 # GitHub Flow (デフォルト)
-./setup-team-repo.sh <owner>/<repo>
-./setup-team-repo.sh --strategy github-flow <owner>/<repo>
+./setup-repo.sh <owner>/<repo>
+./setup-repo.sh --strategy github-flow <owner>/<repo>
 
 # GitFlow
-./setup-team-repo.sh --strategy git-flow <owner>/<repo>
+./setup-repo.sh --strategy git-flow <owner>/<repo>
 
 # 個人リポジトリ向け: 承認レビュー0件にしてセルフマージ可能にする
-./setup-team-repo.sh --approvals 0 <owner>/<repo>
+./setup-repo.sh --approvals 0 <owner>/<repo>
 
 # 引数を省略すると、カレントディレクトリのリポジトリに適用
-./setup-team-repo.sh --strategy git-flow
+./setup-repo.sh --strategy git-flow
 ```
 
 | オプション | 説明 |
@@ -80,7 +80,7 @@ GitFlow は develop で開発を進め、release / hotfix ブランチ経由で�
 
 ### テスト
 
-`test/setup-team-repo.bats` に [bats-core](https://github.com/bats-core/bats-core) によるユニットテストがあります。gh CLI は `test/stubs/gh` のスタブに差し替わるため、**実際のGitHub APIは呼ばれず**、認証もネットワークも不要です。
+`test/setup-repo.bats` に [bats-core](https://github.com/bats-core/bats-core) によるユニットテストがあります。gh CLI は `test/stubs/gh` のスタブに差し替わるため、**実際のGitHub APIは呼ばれず**、認証もネットワークも不要です。
 
 「どんな引数で `gh` が呼ばれたか」「同名Rulesetの有無でPOST/PUTが切り替わるか」「送信されるRuleset JSONの内容」を検証しています。
 
@@ -89,9 +89,9 @@ GitFlow は develop で開発を進め、release / hotfix ブランチ経由で�
 #   Ubuntu: sudo apt-get install -y bats jq shellcheck
 #   macOS:  brew install bats-core jq shellcheck
 
-bash -n setup-team-repo.sh                      # 構文チェック
-shellcheck setup-team-repo.sh test/stubs/gh     # 静的解析
-bats test/                                      # ユニットテスト
+bash -n setup-repo.sh                      # 構文チェック
+shellcheck setup-repo.sh test/stubs/gh     # 静的解析
+bats test/                                 # ユニットテスト
 ```
 
 上記3つは `.github/workflows/ci.yml` でpush / pull request時に自動実行されます。

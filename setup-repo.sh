@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# setup-team-repo.sh — チーム開発向けのGitHubリポジトリ推奨設定を適用するスクリプト
+# setup-repo.sh — チーム開発向けのGitHubリポジトリ推奨設定を適用するスクリプト
 #
 # ブランチ戦略を GitHub Flow / GitFlow から選択でき、戦略に応じて
 # マージ設定とブランチ保護 (Ruleset) を切り替えます。
@@ -21,7 +21,7 @@
 #     - デフォルトブランチと develop を保護
 #
 # 使い方:
-#   ./setup-team-repo.sh [--strategy github-flow|git-flow] [--approvals <n>] [<owner>/<repo>]
+#   ./setup-repo.sh [--strategy github-flow|git-flow] [--approvals <n>] [<owner>/<repo>]
 #
 # 何度実行しても安全(冪等)です。
 
@@ -74,7 +74,7 @@ JSON
 
 usage() {
   cat <<'USAGE'
-使い方: ./setup-team-repo.sh [--strategy github-flow|git-flow] [--approvals <n>] [<owner>/<repo>]
+使い方: ./setup-repo.sh [--strategy github-flow|git-flow] [--approvals <n>] [<owner>/<repo>]
 
 オプション:
   --strategy <strategy>  ブランチ戦略 (github-flow | git-flow)。省略時は github-flow。
@@ -158,7 +158,7 @@ fi
 
 if [[ -z "$REPO" ]]; then
   REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || {
-    echo "エラー: 対象リポジトリを特定できません。'./setup-team-repo.sh <owner>/<repo>' の形式で指定してください。" >&2
+    echo "エラー: 対象リポジトリを特定できません。'./setup-repo.sh <owner>/<repo>' の形式で指定してください。" >&2
     exit 1
   }
 fi
