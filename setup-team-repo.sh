@@ -9,6 +9,7 @@
 #   - マージ後ブランチ自動削除、auto-merge有効化
 #   - 保護ブランチへのPR必須 (承認レビュー1件以上、古いレビューの自動却下、
 #     レビュースレッドの解決必須)、force push禁止、ブランチ削除禁止
+#   - 必須承認レビュー数は --approvals で変更可能 (0にすると個人リポジトリでもセルフマージ可能)
 #
 # 戦略ごとの違い:
 #   github-flow (デフォルト):
@@ -20,7 +21,7 @@
 #     - デフォルトブランチと develop を保護
 #
 # 使い方:
-#   ./setup-team-repo.sh [--strategy github-flow|git-flow] [<owner>/<repo>]
+#   ./setup-team-repo.sh [--strategy github-flow|git-flow] [--approvals <n>] [<owner>/<repo>]
 #
 # 何度実行しても安全(冪等)です。
 
@@ -34,9 +35,10 @@ RULESET_NAME="team-branch-protection"
 GITFLOW_DEVELOP_BRANCH="develop"
 
 # チーム開発向けの保護ブランチRuleset。
-# include には保護対象ブランチのリスト (JSON配列) を渡す。
+# include には保護対象ブランチのリスト (JSON配列)、approvals には必須承認レビュー数を渡す。
 ruleset_json() {
   local include_refs="$1"
+  local approvals="$2"
   cat <<JSON
 {
   "name": "${RULESET_NAME}",
@@ -52,7 +54,7 @@ ruleset_json() {
     {
       "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 1,
+        "required_approving_review_count": ${approvals},
         "dismiss_stale_reviews_on_push": true,
         "require_code_owner_review": false,
         "require_last_push_approval": false,
@@ -72,10 +74,12 @@ JSON
 
 usage() {
   cat <<'USAGE'
-使い方: ./setup-team-repo.sh [--strategy github-flow|git-flow] [<owner>/<repo>]
+使い方: ./setup-team-repo.sh [--strategy github-flow|git-flow] [--approvals <n>] [<owner>/<repo>]
 
 オプション:
   --strategy <strategy>  ブランチ戦略 (github-flow | git-flow)。省略時は github-flow。
+  --approvals <n>        必須の承認レビュー数。省略時は 1。
+                         個人リポジトリでセルフマージしたい場合は 0 を指定する。
   -h, --help             このヘルプを表示する。
 
 リポジトリを省略すると、カレントディレクトリのリポジトリに適用します。
@@ -83,6 +87,7 @@ USAGE
 }
 
 STRATEGY="github-flow"
+APPROVALS=1
 REPO=""
 
 while [[ $# -gt 0 ]]; do
@@ -93,6 +98,14 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       STRATEGY="$2"
+      shift 2
+      ;;
+    --approvals)
+      if [[ $# -lt 2 ]]; then
+        echo "エラー: --approvals には値が必要です (0以上の整数)" >&2
+        exit 1
+      fi
+      APPROVALS="$2"
       shift 2
       ;;
     -h|--help)
@@ -117,6 +130,11 @@ done
 
 if [[ "$STRATEGY" != "github-flow" && "$STRATEGY" != "git-flow" ]]; then
   echo "エラー: 不明なブランチ戦略です: $STRATEGY (github-flow | git-flow から選択してください)" >&2
+  exit 1
+fi
+
+if [[ ! "$APPROVALS" =~ ^[0-9]+$ ]]; then
+  echo "エラー: --approvals には0以上の整数を指定してください (指定値: $APPROVALS)" >&2
   exit 1
 fi
 
@@ -152,6 +170,7 @@ fi
 
 echo "対象リポジトリ: $REPO"
 echo "ブランチ戦略: $STRATEGY"
+echo "必須承認レビュー数: $APPROVALS"
 
 # ---------------------------------------------------------------------------
 # 1. マージ設定
@@ -222,14 +241,14 @@ existing_ruleset_id="$(gh api "repos/${REPO}/rulesets" \
   --jq ".[] | select(.name == \"${RULESET_NAME}\") | .id" 2>/dev/null | head -n1)" || existing_ruleset_id=""
 
 if [[ -n "$existing_ruleset_id" ]]; then
-  if ruleset_json "$include_refs" | gh api --method PUT "repos/${REPO}/rulesets/${existing_ruleset_id}" --input - >/dev/null; then
+  if ruleset_json "$include_refs" "$APPROVALS" | gh api --method PUT "repos/${REPO}/rulesets/${existing_ruleset_id}" --input - >/dev/null; then
     echo "    既存のRuleset '${RULESET_NAME}' (id: ${existing_ruleset_id}) を更新しました"
   else
     echo "エラー: Rulesetの更新に失敗しました。" >&2
     exit 1
   fi
 else
-  if ruleset_json "$include_refs" | gh api --method POST "repos/${REPO}/rulesets" --input - >/dev/null; then
+  if ruleset_json "$include_refs" "$APPROVALS" | gh api --method POST "repos/${REPO}/rulesets" --input - >/dev/null; then
     echo "    Ruleset '${RULESET_NAME}' を作成しました"
   else
     echo "エラー: Rulesetの作成に失敗しました。" >&2

@@ -26,6 +26,29 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# 前提チェック
+# ---------------------------------------------------------------------------
+
+@test "gh コマンドが無い場合はエラーで終了する" {
+  mkdir -p "$TEST_TMP/nogh"
+  ln -s "$(command -v bash)" "$TEST_TMP/nogh/bash"
+
+  run env PATH="$TEST_TMP/nogh" "$SETUP_SCRIPT" owner/repo
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"gh コマンドが見つかりません"* ]]
+}
+
+@test "gh にログインしていない場合はエラーで終了する" {
+  export GH_STUB_AUTH_FAIL=1
+
+  run "$SETUP_SCRIPT" owner/repo
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"gh auth login"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # 引数の解析
 # ---------------------------------------------------------------------------
 
@@ -58,6 +81,21 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"github-flow"* ]]
   [[ "$output" == *"git-flow"* ]]
+}
+
+@test "--approvals に整数以外を指定するとエラーで終了する" {
+  run "$SETUP_SCRIPT" --approvals two owner/repo
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"0以上の整数"* ]]
+  ! grep -q 'gh repo edit' "$GH_STUB_LOG"
+}
+
+@test "--approvals に値が無い場合はエラーで終了する" {
+  run "$SETUP_SCRIPT" owner/repo --approvals
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--approvals には値が必要です"* ]]
 }
 
 @test "リポジトリ名の形式が不正な場合はエラーで終了する" {
@@ -101,6 +139,15 @@ teardown() {
   [[ "$call" == *"--enable-auto-merge"* ]]
   [[ "$call" == *"--squash-merge-commit-title PR_TITLE"* ]]
   [[ "$call" == *"--squash-merge-commit-message PR_BODY"* ]]
+}
+
+@test "マージ設定に失敗した場合はRulesetに進まず終了する" {
+  export GH_STUB_REPO_EDIT_FAIL=1
+
+  run "$SETUP_SCRIPT" owner/repo
+
+  [ "$status" -ne 0 ]
+  ! grep -q -- '--method' "$GH_STUB_LOG"
 }
 
 @test "github-flow は developブランチを作成しない" {
@@ -208,6 +255,30 @@ teardown() {
   [ "$(jq -r '.dismiss_stale_reviews_on_push' <<<"$pr_params")" = "true" ]
   # レビュースレッドの解決を必須にする
   [ "$(jq -r '.required_review_thread_resolution' <<<"$pr_params")" = "true" ]
+}
+
+@test "--approvals で必須承認レビュー数を変更できる" {
+  run "$SETUP_SCRIPT" --approvals 2 owner/repo
+  [ "$status" -eq 0 ]
+
+  [ "$(jq -r '.rules[] | select(.type == "pull_request") | .parameters.required_approving_review_count' "$GH_STUB_PAYLOAD")" = "2" ]
+}
+
+@test "--approvals 0 で個人リポジトリ向けにセルフマージ可能な設定にできる" {
+  run "$SETUP_SCRIPT" --approvals 0 owner/repo
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"必須承認レビュー数: 0"* ]]
+  [ "$(jq -r '.rules[] | select(.type == "pull_request") | .parameters.required_approving_review_count' "$GH_STUB_PAYLOAD")" = "0" ]
+}
+
+@test "Ruleset一覧の照会に失敗しても新規作成にフォールバックする" {
+  export GH_STUB_RULESET_LIST_FAIL=1
+
+  run "$SETUP_SCRIPT" owner/repo
+
+  [ "$status" -eq 0 ]
+  grep -q -- '--method POST' "$GH_STUB_LOG"
 }
 
 @test "同名のRulesetが無い場合は POST で新規作成する" {
